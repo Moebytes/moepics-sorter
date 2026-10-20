@@ -1,0 +1,24 @@
+{
+  "name": "moepics-sorter",
+  "version": "0.0.1",
+  "description": "Automatic sorter for moepictures",
+  "scripts": {
+    "start": "tsc && node dist/sorter.js",
+    "build": "tsc",
+    "prepare": "npm run build",
+    "clean": "del-cli ./dist"
+  },
+  "keywords": [
+    "anime",
+    "booru",
+    "moe",
+    "sorter"
+  ],
+  "author": "Moebytes",
+  "license": "MIT",
+  "devDependencies": {
+    "@types/node": "^24.7.2",
+    "del-cli": "^7.0.0",
+    "typescript": "^5.9.3"
+  }
+}
