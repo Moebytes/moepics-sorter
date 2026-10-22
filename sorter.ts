@@ -33,7 +33,7 @@ const downloadQualifier = async () => {
     const configPath = path.join(qualifierPath, "adapter_config.json")
     const modelPath = path.join(qualifierPath, "adapter_model.safetensors")
     const templatePath = path.join(qualifierPath, "chat_template.jinja")
-    const preprocessorPath = path.join(qualifierPath, "preprocessor_config.json")
+    const processorPath = path.join(qualifierPath, "processor_config.json")
     const tokenizerConfigPath = path.join(qualifierPath, "tokenizer_config.json")
     const tokenizerPath = path.join(qualifierPath, "tokenizer.json")
     if (!fs.existsSync(configPath)) {
@@ -44,9 +44,9 @@ const downloadQualifier = async () => {
         const data = await fetch(`https://huggingface.co/Moebits/anime-models/resolve/main/qualifiers/chat_template.jinja`).then((r) => r.text())
         fs.writeFileSync(templatePath, data)
     }
-    if (!fs.existsSync(preprocessorPath)) {
-        const data = await fetch(`https://huggingface.co/Moebits/anime-models/resolve/main/qualifiers/preprocessor_config.json`).then((r) => r.json())
-        fs.writeFileSync(preprocessorPath, JSON.stringify(data, null, 4))
+    if (!fs.existsSync(processorPath)) {
+        const data = await fetch(`https://huggingface.co/Moebits/anime-models/resolve/main/qualifiers/processor_config.json`).then((r) => r.json())
+        fs.writeFileSync(processorPath, JSON.stringify(data, null, 4))
     }
     if (!fs.existsSync(tokenizerConfigPath)) {
         const data = await fetch(`https://huggingface.co/Moebits/anime-models/resolve/main/qualifiers/tokenizer_config.json`).then((r) => r.json())
@@ -93,6 +93,9 @@ const downloadModels = async () => {
 }
 
 const sortImages = async (folder: string) => {
+    if (fs.existsSync(path.join(folder, "files.json"))) {
+        fs.unlinkSync(path.join(folder, "files.json"))
+    }
     const scriptPath = path.join(__dirname, "../sort_images.py")
     
     await new Promise<void>((resolve, reject) => {
@@ -115,6 +118,9 @@ const sortImages = async (folder: string) => {
 }
 
 const predictRelationships = async (folder: string) => {
+    if (fs.existsSync(path.join(folder, "files.json"))) {
+        fs.unlinkSync(path.join(folder, "files.json"))
+    }
     const scriptPath = path.join(__dirname, "../predict_relations.py")
     
     await new Promise<void>((resolve, reject) => {
@@ -213,6 +219,10 @@ const predictQualifiers = async (folder: string, relationships: {[key: string]: 
         for (const file of groupFiles) {
             let predictedRelation = relationships[file] || "_p"
             if (groupFiles.length === 1) predictedRelation = "_p"
+            if (predictedQualifiers.includes("comic") || predictedQualifiers.includes("color-comic")) {
+                // Comics are almost never child posts
+                if (predictedRelation === "_c") predictedRelation = "_p"
+            }
             predictedRelation = predictedRelation.replace("_", "")
 
             const {name, ext} = path.parse(file)
@@ -239,7 +249,7 @@ const start = async () => {
     await downloadModels()
     let folder = ""
 
-    folder = await sortImages(folder)
+    //await sortImages(folder)
     const json = await predictRelationships(folder)
     fs.writeFileSync("current.json", JSON.stringify(json, undefined, 4))
     await predictQualifiers(folder, json)
