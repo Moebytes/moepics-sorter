@@ -1,7 +1,9 @@
+import "dotenv/config"
 import path from "path"
 import fs from "fs"
 import util from "util"
 import child_process from "child_process"
+import Pixiv from "pixiv.ts"
 
 const exec = util.promisify(child_process.exec)
 
@@ -179,7 +181,7 @@ const extractSpecialQualifiers = async (folder: string, image: string) => {
     if (tagArr.includes("fanbox_username")) predictedQualifiers.push("fanbox")
     if (tagArr.includes("patreon_username")) predictedQualifiers.push("patreon")
 
-    return predictedQualifiers
+    return {predictedQualifiers, characters: json.characters}
 }
 
 const removeDuplicates = <T>(array: T[]) => {
@@ -196,6 +198,7 @@ const removeDuplicates = <T>(array: T[]) => {
 }
 
 const predictQualifiers = async (folder: string, relationships: {[key: string]: string}) => {
+    const pixiv = await Pixiv.refreshLogin(process.env.PIXIV_REFRESH_TOKEN!)
     const files = fs.readdirSync(folder).filter(file => file !== ".DS_Store")
     const obj: {[id: string]: string[]} = {}
 
@@ -209,12 +212,33 @@ const predictQualifiers = async (folder: string, relationships: {[key: string]: 
 
     let i = 0
     for (const [id, groupFiles] of Object.entries(obj)) {
-        let predictedQualifiers = await extractSpecialQualifiers(folder, groupFiles[0])
+        let {predictedQualifiers, characters} = await extractSpecialQualifiers(folder, groupFiles[0])
 
         if (groupFiles.length > 1) {
-            let lastQualifiers = await extractSpecialQualifiers(folder, groupFiles[groupFiles.length - 1])
-            predictedQualifiers = removeDuplicates([...predictedQualifiers, ...lastQualifiers])
+            const lastFile = groupFiles[groupFiles.length - 1]
+            let {predictedQualifiers: lastQualifiers, characters: lastCharacters} = 
+                await extractSpecialQualifiers(folder, lastFile)
+            predictedQualifiers.push(...lastQualifiers)
+
+            let predictedRelation = relationships[lastFile]
+            if (lastCharacters.length > characters.length && predictedRelation === "_c") {
+                groupFiles.unshift(groupFiles.pop()!)
+                characters = lastCharacters
+            }
         }
+
+        try {
+            let illust = await pixiv.illust.get(id)
+            const tags = illust.tags.map((t) => t.name)
+            if (tags.includes("コイカツ") || tags.includes("Koikatsu")) predictedQualifiers.push("3d")
+            if (illust.type === "manga") {
+                if (!predictedQualifiers.includes("comic") && !predictedQualifiers.includes("color-comic")) {
+                    predictedQualifiers.push("comic")
+                }
+            }
+        } catch {}
+
+        predictedQualifiers = removeDuplicates(predictedQualifiers)
 
         for (const file of groupFiles) {
             let predictedRelation = relationships[file] || "_p"
@@ -247,6 +271,7 @@ const predictQualifiers = async (folder: string, relationships: {[key: string]: 
 
 const start = async () => {
     await downloadModels()
+
     let folder = ""
 
     //await sortImages(folder)
